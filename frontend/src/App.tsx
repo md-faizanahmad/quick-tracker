@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-
+import { Plus } from "lucide-react";
 function App() {
   const [status, setStatus] = useState<string>("checking...");
 
@@ -11,9 +11,10 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Offline Expense Tracker</h1>
-      <p>{status}</p>
+    <div className="min-h-screen bg-gray-50 p-4">
+      <h1 className="text-xl font-bold">Offline Expense Tracker</h1>
+      <Plus size={18} />
+      <p className="text-sm text-gray-600">Frontend structure ready {status}</p>
     </div>
   );
 }
