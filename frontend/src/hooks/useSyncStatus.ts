@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { SyncContext } from "../context/SyncContext";
+import { SyncContext } from "../context/syncContext";
 
 export function useSyncStatus() {
   const ctx = useContext(SyncContext);

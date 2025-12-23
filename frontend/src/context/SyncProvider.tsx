@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SyncContext } from "./SyncContext";
+import { SyncContext } from "./syncContext";
 import type { SyncStatus } from "../types/sync";
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
