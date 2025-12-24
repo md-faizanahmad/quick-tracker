@@ -1,21 +1,46 @@
 // src/components/ExpenseList.tsx
 import { useEffect, useState } from "react";
-import { Trash2, Pencil, RotateCcw, AlertTriangle } from "lucide-react";
+import {
+  Trash2,
+  Pencil,
+  RotateCcw,
+  AlertTriangle,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import {
   getAllExpenses,
   deleteExpense,
   updateExpense,
 } from "../lib/db/indexedDb";
+import { syncToServer } from "../lib/api/sync";
 import type { Expense } from "../types/expenses";
+import CategoryChart from "./CategoryChart";
 
 type Props = {
   onEdit: (expense: Expense) => void;
 };
 
+const CATEGORY_ICONS: Record<string, string> = {
+  Bills: "📄",
+  Groceries: "🛒",
+  Entertainment: "🎬",
+  Shopping: "🛍️",
+  Food: "🍽️",
+  Study: "📚",
+  Transport: "🚕",
+  Rent: "🏠",
+  Health: "🏥",
+  Other: "❓",
+};
+
 export default function ExpenseList({ onEdit }: Props) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     const loadExpenses = async () => {
@@ -32,20 +57,49 @@ export default function ExpenseList({ onEdit }: Props) {
 
     loadExpenses();
     window.addEventListener("expenses-updated", loadExpenses);
-    return () => window.removeEventListener("expenses-updated", loadExpenses);
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("expenses-updated", loadExpenses);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
   const handleDelete = (id: string) => {
-    if (confirmId === id) {
+    if (deleteConfirmId === id) {
       deleteExpense(id);
-      setConfirmId(null);
+      setDeleteConfirmId(null);
     } else {
-      setConfirmId(id);
+      setDeleteConfirmId(id);
     }
   };
 
   const handleRetry = async (expense: Expense) => {
-    await updateExpense({ ...expense, synced: false });
+    try {
+      // Mark as pending first (UI feedback)
+      await updateExpense({ ...expense, synced: false });
+      window.dispatchEvent(new Event("expenses-updated"));
+      alert("Retry triggered");
+
+      // Always attempt sync — mobile-safe
+      await syncToServer([{ ...expense, synced: false }]);
+
+      // Mark as synced if request succeeds
+      await updateExpense({ ...expense, synced: true });
+      window.dispatchEvent(new Event("expenses-updated"));
+    } catch (err) {
+      // If offline or network fails → stay pending
+      console.error("Sync failed:", err);
+    }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
   };
 
   if (loading) {
@@ -59,28 +113,28 @@ export default function ExpenseList({ onEdit }: Props) {
   if (expenses.length === 0) {
     return (
       <div className="text-center py-16 px-4">
-        <p className="text-gray-500 dark:text-gray-400 text-base">
-          No expenses yet. Add your first one!
+        <p className="text-gray-500 text-lg font-medium">
+          No expenses yet. Start tracking!
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div
-        className="
-          grid 
-          grid-cols-1 
-          sm:grid-cols-2 
-          lg:grid-cols-3 
-          xl:grid-cols-4 
-          2xl:grid-cols-5 
-          gap-4 md:gap-6
-        "
-      >
+    <div className="space-y-6 px-2 sm:px-4">
+      <CategoryChart expenses={expenses} />
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-6 shadow-sm">
+        <p className="text-sm text-gray-600">Total this month</p>
+        <p className="text-2xl font-bold text-gray-900">
+          ₹{expenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+        </p>
+      </div>
+
+      <div className="space-y-3">
         {expenses.map((expense) => {
-          const isConfirming = confirmId === expense.id;
+          const isExpanded = expandedId === expense.id;
+          const isConfirming = deleteConfirmId === expense.id;
           const date = new Date(expense.date);
           const formattedDate = date.toLocaleDateString("en-US", {
             weekday: "short",
@@ -91,94 +145,141 @@ export default function ExpenseList({ onEdit }: Props) {
           return (
             <div
               key={expense.id}
-              className={`
-                bg-white dark:bg-gray-800 
+              className="
+                bg-white 
                 rounded-2xl 
-                border border-gray-200 dark:border-gray-700 
-                shadow-sm hover:shadow-lg 
+                border border-gray-200 
+                shadow-sm 
                 transition-all duration-300 
                 overflow-hidden
-                flex flex-col
-                h-full
-              `}
+                relative
+              "
             >
-              {/* Header */}
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-start bg-gray-50 dark:bg-gray-900/40">
-                <div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {formattedDate}
-                  </div>
-                  <div className="text-base font-semibold text-gray-900 dark:text-white mt-0.5">
-                    {expense.category}
+              {/* Compact Header – shown on mobile */}
+              <div
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                onClick={() => toggleExpand(expense.id)}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">
+                    {CATEGORY_ICONS[expense.category] || "❓"}
+                  </span>
+                  <div>
+                    <div className="text-base font-semibold text-gray-900">
+                      {expense.category}
+                    </div>
                   </div>
                 </div>
 
-                {!expense.synced && (
-                  <span className="text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-2.5 py-1 rounded-full">
-                    Pending
-                  </span>
-                )}
-              </div>
-
-              {/* Main content */}
-              <div className="flex-1 flex flex-col justify-between p-5">
-                {expense.note && (
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">
-                    {expense.note}
-                  </p>
-                )}
-
-                <div className="flex items-end justify-between mt-auto">
-                  <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-                    ₹{expense.amount.toLocaleString("en-IN")}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    {expense.synced ? (
+                      <span className="flex cursor-pointer items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                        <CheckCircle size={12} />
+                        Synced
+                      </span>
+                    ) : (
+                      <span className="flex cursor-pointer items-center gap-1 text-sm font-medium px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">
+                        <RotateCcw size={12} />
+                        Pending
+                      </span>
+                    )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
+                  <span className="text-gray-900 font-bold text-lg">
+                    {expense.currency}
+                    {expense.amount.toLocaleString("en-IN")}
+                  </span>
+
+                  <div className="text-gray-400 ">
+                    {isExpanded ? (
+                      <ChevronUp size={18} />
+                    ) : (
+                      <ChevronDown size={18} />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Expanded Details – only shown when clicked on mobile */}
+              {isExpanded && (
+                <div className="px-4 pb-4 pt-2 border-t border-gray-100">
+                  <div className="text-xs text-gray-500 mb-2">
+                    {formattedDate}
+                  </div>
+
+                  {expense.note && (
+                    <p className="text-sm text-gray-600 mb-4">{expense.note}</p>
+                  )}
+
+                  <div className="flex justify-end gap-2">
                     {!expense.synced && (
                       <button
                         onClick={() => handleRetry(expense)}
-                        title="Retry sync"
-                        className="p-2 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-lg transition-colors"
+                        disabled={!isOnline}
+                        title={
+                          isOnline
+                            ? "Retry sync"
+                            : "Offline – will sync when online"
+                        }
+                        className={`
+                          p-2 rounded-full 
+                          ${
+                            isOnline
+                              ? "text-orange-600 hover:bg-orange-50 active:scale-95 active:rotate-180 transition-all duration-300"
+                              : "text-gray-400 cursor-not-allowed"
+                          }
+                        `}
                       >
                         <RotateCcw size={18} />
                       </button>
                     )}
-
                     <button
                       onClick={() => onEdit(expense)}
-                      title="Edit expense"
-                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                      title="Edit"
+                      className="p-2 cursor-pointer rounded-full text-blue-600 hover:bg-blue-50 active:scale-95 transition-all duration-200"
                     >
                       <Pencil size={18} />
                     </button>
-
                     <button
-                      onClick={() => handleDelete(expense.id)}
-                      title={isConfirming ? "Confirm delete" : "Delete"}
-                      className={`
-                        p-2 rounded-lg transition-colors
-                        ${
-                          isConfirming
-                            ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"
-                            : "text-gray-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
-                        }
-                      `}
+                      onClick={() => setDeleteConfirmId(expense.id)}
+                      title="Delete"
+                      className="p-2 cursor-pointer rounded-full text-red-600 hover:bg-red-50 active:scale-95 transition-all duration-200"
                     >
-                      {isConfirming ? (
-                        <AlertTriangle size={18} />
-                      ) : (
-                        <Trash2 size={18} />
-                      )}
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Confirmation bar */}
+              {/* Delete Confirmation Modal */}
               {isConfirming && (
-                <div className="px-5 py-2.5 bg-red-50 dark:bg-red-900/30 border-t border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
-                  Confirm delete? Tap again.
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+                  <div className="bg-white rounded-2xl shadow-2xl  p-3 max-w-xs w-full mx-4 border border-gray-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <AlertTriangle size={20} className="text-red-600" />
+                      <h3 className="text-md font-semibold text-gray-900">
+                        Delete Expense?
+                      </h3>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-6">
+                      This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => setDeleteConfirmId(null)}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleDelete(expense.id)}
+                        className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

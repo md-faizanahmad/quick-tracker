@@ -9,13 +9,17 @@ export function useSync() {
   const { setStatus } = useSyncStatus();
 
   useEffect(() => {
-    if (!online) return;
-
+    if (!online) {
+      setStatus("idle");
+      return;
+    }
+    let retryId: number | null = null;
     const runSync = async () => {
       try {
         setStatus("syncing");
 
         const pending = await getUnsyncedExpenses();
+
         if (pending.length === 0) {
           setStatus("idle");
           return;
@@ -29,10 +33,17 @@ export function useSync() {
 
         setStatus("idle");
       } catch {
-        setStatus("error");
+        setStatus("waiting");
+        retryId = window.setTimeout(runSync, 5000);
       }
     };
 
     runSync();
+
+    return () => {
+      if (retryId !== null) {
+        clearTimeout(retryId);
+      }
+    };
   }, [online, setStatus]);
 }

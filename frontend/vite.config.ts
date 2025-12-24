@@ -11,14 +11,25 @@ export default defineConfig({
       registerType: "autoUpdate",
       strategies: "generateSW",
       injectRegister: "auto",
+
       devOptions: {
-        enabled: true,
+        enabled: false, // 🔴 TURN OFF IN DEV
       },
+
       includeAssets: ["favicon.svg"],
       manifest: false,
+
       workbox: {
-        navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
+        navigateFallback: "/index.html",
+        runtimeCaching: [
+          {
+            urlPattern:
+              /^https:\/\/offline-expense-tracker-backend\.vercel\.app\/sync$/,
+            handler: "NetworkOnly",
+            method: "POST",
+          },
+        ],
       },
     }),
   ],

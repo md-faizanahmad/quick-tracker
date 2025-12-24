@@ -9,7 +9,7 @@ type Props = {
 
 export default function ExpenseCard({ expense, onEdit }: Props) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-3 space-y-2">
+    <div className="bg-white -900 rounded-xl border  border-gray-800 p-3 space-y-2">
       {/* DATE */}
       <div className="text-xs text-gray-500">
         {new Date(expense.date).toDateString()}
