@@ -1,6 +1,6 @@
 import { Trash2, Pencil } from "lucide-react";
-import type { Expense } from "../types/expenses";
-import { deleteExpense } from "../lib/db/indexedDb";
+import type { Expense } from "../../types/expenses";
+import { deleteExpense } from "../../lib/db/indexedDb";
 
 type Props = {
   expense: Expense;

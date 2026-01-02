@@ -25,7 +25,7 @@ export default function Header() {
             {/* Brand + Time */}
             <div className="flex flex-col">
               <h1 className="text-2xl font-poppins font-bold bg-linear-to-r  to-indigo-600 from-blue-400  bg-clip-text text-transparent">
-                Expense Tracker
+                QuickTrack
               </h1>
               <span className="text-xs text-gray-500 ">
                 {time.toLocaleDateString("en-US", {

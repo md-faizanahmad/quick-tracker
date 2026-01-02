@@ -1,8 +1,8 @@
 // src/components/ExpenseForm.tsx
 import { useEffect, useState, type FormEvent } from "react";
-import { saveExpense, updateExpense } from "../lib/db/indexedDb";
-import { validateExpense } from "../lib/validation/expenseValidation";
-import type { Expense } from "../types/expenses";
+import { saveExpense, updateExpense } from "../../lib/db/indexedDb";
+import { validateExpense } from "../../lib/validation/expenseValidation";
+import type { Expense } from "../../types/expenses";
 
 const CATEGORIES = [
   { value: "Bills", icon: "📄" },
@@ -87,30 +87,36 @@ export default function ExpenseForm({ initialExpense, onCloseEdit }: Props) {
       onCloseEdit?.(); // Close modal after adding new
     }
   };
+
+  // Auto-scroll to focused input with keyboard handling
   useEffect(() => {
     const handleFocus = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "SELECT") {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Delay to allow keyboard animation
+        setTimeout(() => {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 300);
       }
     };
 
     document.addEventListener("focusin", handleFocus);
     return () => document.removeEventListener("focusin", handleFocus);
   }, []);
+
   return (
     <div className="w-full">
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-6 ">
         {/* Amount + Currency */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Amount
           </label>
-          <div className="flex items-stretch">
+          <div className="flex items-stretch rounded-xl overflow-hidden border border-gray-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
-              className="w-20 px-3 py-3 bg-gray-50 border border-r-0 border-gray-300 rounded-l-xl text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-20 px-3 py-3 bg-gray-50 text-gray-900 font-medium cursor-pointer focus:outline-none"
             >
               {CURRENCIES.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -126,14 +132,14 @@ export default function ExpenseForm({ initialExpense, onCloseEdit }: Props) {
               onChange={(e) => setAmount(e.target.value)}
               required
               placeholder="0.00"
-              className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-r-xl text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="flex-1 px-4 py-3 bg-white text-gray-900 text-lg font-medium outline-none"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
         </div>
 
         {/* Category */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Category
           </label>
@@ -151,7 +157,7 @@ export default function ExpenseForm({ initialExpense, onCloseEdit }: Props) {
         </div>
 
         {/* Note */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Note (optional)
           </label>
@@ -164,10 +170,10 @@ export default function ExpenseForm({ initialExpense, onCloseEdit }: Props) {
           />
         </div>
 
-        {/* Submit */}
+        {/* Submit Button */}
         <button
           type="submit"
-          className="w-full cursor-pointer py-3.5 px-6 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 active:bg-blue-800 transition-all shadow-md"
+          className="w-full py-4 px-6 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 active:bg-blue-800 transition-all shadow-md"
         >
           {isEdit ? "Save Changes" : "Add Expense"}
         </button>

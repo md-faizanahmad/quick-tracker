@@ -13,9 +13,10 @@ import {
   getAllExpenses,
   deleteExpense,
   updateExpense,
-} from "../lib/db/indexedDb";
-import { syncToServer } from "../lib/api/sync";
-import type { Expense } from "../types/expenses";
+  markAsSynced,
+} from "../../lib/db/indexedDb";
+import { syncToServer } from "../../lib/api/sync";
+import type { Expense } from "../../types/expenses";
 import CategoryChart from "./CategoryChart";
 
 type Props = {
@@ -81,19 +82,18 @@ export default function ExpenseList({ onEdit }: Props) {
 
   const handleRetry = async (expense: Expense) => {
     try {
-      // Mark as pending first (UI feedback)
+      // UI feedback (optional)
       await updateExpense({ ...expense, synced: false });
       window.dispatchEvent(new Event("expenses-updated"));
-      alert("Retry triggered");
 
-      // Always attempt sync — mobile-safe
-      await syncToServer([{ ...expense, synced: false }]);
+      // 🔴 Send CLEAN data only
+      await syncToServer([expense]);
 
-      // Mark as synced if request succeeds
-      await updateExpense({ ...expense, synced: true });
+      // 🔴 Mark synced BY ID (NO stale overwrite)
+      await markAsSynced(expense.id);
+
       window.dispatchEvent(new Event("expenses-updated"));
     } catch (err) {
-      // If offline or network fails → stay pending
       console.error("Sync failed:", err);
     }
   };

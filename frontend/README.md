@@ -1,73 +1,244 @@
-# React + TypeScript + Vite
+Offline Expense Tracker (PWA)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A mobile-first, offline-first expense tracking web app that works reliably on phones, supports IndexedDB storage, background syncing, and behaves correctly even under unstable network conditions.
 
-Currently, two official plugins are available:
+Built to solve real-world offline problems, not demo scenarios.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+🔑 Core Goals
 
-## React Compiler
+Work fully offline (add/edit/delete expenses without internet)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Sync data reliably when online
 
-## Expanding the ESLint configuration
+Behave correctly on mobile + PWA, not just desktop
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Avoid UI breakage from unbounded user input
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Keep architecture simple, debuggable, and scalable
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+🧱 Architecture Overview
+High-Level Flow
+UI (React Components)
+↓
+Local State + Events
+↓
+IndexedDB (source of truth)
+↓
+Sync Layer (NetworkOnly)
+↓
+Backend API (/sync)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Key Principle
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+IndexedDB is the source of truth.
+Network sync is opportunistic, never blocking user actions.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+🗂️ Folder Structure (Relevant)
+src/
+├── components/
+│ ├── Header.tsx
+│ ├── ExpenseForm.tsx
+│ ├── ExpenseList.tsx
+│ ├── CategoryChart.tsx
+│ └── InstallPrompt.tsx
+│
+├── hooks/
+│ ├── useSync.ts
+│ ├── useOnlineStatus.ts
+│ └── useSyncStatus.ts
+│
+├── lib/
+│ ├── db/
+│ │ └── indexedDb.ts
+│ ├── api/
+│ │ └── sync.ts
+│ ├── analytics/
+│ │ └── categorySummary.ts
+│ └── validation/
+│ └── expenseValidation.ts
+│
+├── types/
+│ └── expenses.ts
+│
+├── App.tsx
+└── main.tsx
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+🧠 Data & State Design
+Expense Model (Simplified)
+type Expense = {
+id: string;
+amount: number;
+currency: string;
+category: string;
+note?: string;
+date: string;
+synced: boolean;
+};
+
+Why This Works
+
+synced: false → local-only data
+
+synced: true → confirmed by backend
+
+No optimistic assumptions
+
+UI always reflects real persistence state
+
+💾 Offline Storage (IndexedDB)
+
+All CRUD operations happen locally
+
+App never blocks on network
+
+IndexedDB operations trigger a custom event:
+
+window.dispatchEvent(new Event("expenses-updated"));
+
+This keeps components decoupled without over-engineering global state.
+
+🔁 Sync Strategy (Critical Design Choice)
+Key Rules
+
+Never block sync using navigator.onLine
+
+Always attempt the network request
+
+Let fetch() decide if the network is available
+
+Fail → keep data pending → retry later
+
+Why
+
+Mobile browsers and PWAs frequently report incorrect online status.
+Relying on navigator.onLine causes false negatives on phones.
+
+🌐 Service Worker Strategy (PWA-Safe)
+Problem Solved
+
+Mobile PWAs aggressively cache requests and can silently swallow API calls.
+
+Solution
+
+/sync endpoint is explicitly NetworkOnly
+
+Absolute backend URL is matched in Workbox
+
+cache: "no-store" is enforced on sync requests
+
+fetch(BACKEND_URL + "/sync", {
+method: "POST",
+cache: "no-store",
+keepalive: true,
+});
+
+This guarantees:
+
+Sync works on real phones
+
+No “stuck pending” state
+
+Consistent behavior across environments
+
+✍️ Input Validation & UI Safety
+Hard Limits (Non-Negotiable)
+
+Amount capped (prevents absurd values)
+
+Note length capped (prevents card overflow)
+
+Category length controlled
+
+Validation logic is separated from UI:
+
+lib/validation/expenseValidation.ts
+
+This keeps components clean and reusable.
+
+📊 Lightweight Analytics (No Chart Libraries)
+
+Instead of heavy chart libraries:
+
+Expenses are grouped by category
+
+Simple bar visualization shows where money is spent most
+
+Fast, mobile-friendly, zero dependencies
+
+This avoids:
+
+Bundle bloat
+
+Canvas/SVG issues on low-end phones
+
+📱 Mobile-First Considerations
+
+Large tap targets
+
+Card-based layout
+
+No hover-only interactions
+
+Sync logic tested on real devices, not just DevTools
+
+🚫 What This App Intentionally Does NOT Do
+
+No server-side state ownership
+
+No blocking network calls
+
+No reliance on navigator.onLine
+
+No heavy state libraries (Redux/Zustand)
+
+No unnecessary chart frameworks
+
+🧪 Real-World Testing Notes
+
+Desktop dev tools can mask PWA issues
+
+Mobile PWAs behave differently (more aggressive SW caching)
+
+Sync logic was validated on real phones
+
+Old service workers must be cleared during testing
+
+📌 Key Engineering Takeaways (Interview-Ready)
+
+Offline-first requires optimistic UI + pessimistic sync
+
+IndexedDB is storage, not state — UI listens to events
+
+Network checks must be attempt-based, not flag-based
+
+PWAs require explicit control over Service Worker behavior
+
+Mobile browsers lie more than desktops
+
+🚀 Future Enhancements (Planned)
+
+Background Sync API
+
+Sync retry with exponential backoff
+
+Monthly summaries
+
+Export (CSV / PDF)
+
+Budget alerts
+
+🧑‍💻 Why This Project Matters
+
+This project demonstrates:
+
+Real offline engineering
+
+Mobile-aware thinking
+
+PWA pitfalls and solutions
+
+Practical trade-offs instead of tutorials
+
+This is not a demo app — it solves real constraints users face.
+
+If you want next:

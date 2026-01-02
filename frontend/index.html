@@ -2,58 +2,37 @@
 <html lang="en">
 
 <head>
-  <!-- Basic Meta Tags -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="X-UA-Compatible" content="ie=edge" />
 
-  <!-- SEO & Social Sharing Meta Tags -->
-  <title>Offline Expense Tracker – Track Expenses Anywhere</title>
-  <meta name="description"
-    content="Simple, offline expense tracker. Add, edit, and view your expenses with category icons and sync status. Works without internet." />
-  <meta name="keywords" content="expense tracker, offline app, personal finance, budget tracker, expense manager" />
-  <meta name="author" content="Your Name or Company" />
-
-  <!-- Open Graph (Facebook, LinkedIn, etc.) -->
-  <meta property="og:title" content="Offline Expense Tracker" />
-  <meta property="og:description" content="Track your expenses offline with ease. Simple, fast, and privacy-focused." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://pocket-tracker-woad.vercel.app" /> <!-- Replace with your actual URL -->
-  <meta property="og:image" content="/og-image.png" /> <!-- Add a 1200x630 image in public/ -->
-
-  <!-- Twitter Cards -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Offline Expense Tracker" />
-  <meta name="twitter:description" content="Track expenses offline with category icons and sync status." />
-  <meta name="twitter:image" content="/og-image.png" />
-
-  <!-- PWA Manifest & Icons -->
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
   <link rel="apple-touch-icon" href="/pwa-192x192.png" />
-  <meta name="theme-color" content="#2563eb" />
-  <meta name="mobile-web-app-capable" content="yes">
 
-  <!-- Preload critical assets (optional but improves LCP) -->
-  <link rel="preload" href="/src/main.tsx" as="script" />
+  <title>QuickTrack | Offline Expense Tracker & Budget Manager</title>
+  <meta name="description"
+    content="Free offline expense tracker. Manage your personal finance, track daily spending, and budget without internet. Privacy-focused and fast." />
+  <meta name="keywords"
+    content="expense tracker, offline budget app, personal finance manager, track spending no internet, private expense log" />
 
-  <!-- Theme handling script (kept as is) -->
-  <script>
-    (function () {
-      const theme = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  <meta name="google-site-verification" content="YOUR_CODE_HERE" />
 
-      if (theme === "dark" || (!theme && prefersDark)) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    })();
-  </script>
+  <meta property="og:title" content="QuickTrack - Offline Expense Tracker" />
+  <meta property="og:description"
+    content="The fastest way to track expenses offline. No cloud, no tracking, just your data." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://quicktrack-navy.vercel.app" />
+  <meta property="og:image" content="https://quicktrack-navy.vercel.app/og-image.png" />
+
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div style="display:none;">
+      <h1>QuickTrack: Offline Expense Tracker</h1>
+      <p>A simple, private, and fast way to manage your budget and daily expenses offline.</p>
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
