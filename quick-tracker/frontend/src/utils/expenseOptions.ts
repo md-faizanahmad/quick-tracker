@@ -13,6 +13,11 @@ export const CATEGORIES = [
 
 export type ExpenseCategory = (typeof CATEGORIES)[number]["value"];
 
+export const CATEGORY_ICONS: Record<ExpenseCategory, string> =
+  Object.fromEntries(
+    CATEGORIES.map(({ value, icon }) => [value, icon]),
+  ) as Record<ExpenseCategory, string>;
+
 export const CURRENCIES = [
   { code: "₹", label: "INR", flag: "🇮🇳" },
   { code: "$", label: "USD", flag: "🇺🇸" },
