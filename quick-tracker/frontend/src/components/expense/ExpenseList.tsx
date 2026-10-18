@@ -1,5 +1,3 @@
-// src/components/ExpenseList.tsx
-import { useEffect, useState } from "react";
 import {
   Trash2,
   Pencil,
@@ -8,284 +6,305 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  ReceiptText,
 } from "lucide-react";
-import {
-  getAllExpenses,
-  deleteExpense,
-  updateExpense,
-  markAsSynced,
-} from "../../lib/db/indexedDb";
-import { syncToServer } from "../../lib/api/sync";
+
 import type { Expense } from "../../types/expenses";
+import { useExpenseList } from "../../hooks/useExpenseList";
 import CategoryChart from "./CategoryChart";
+import { CATEGORY_ICONS } from "../../utils/expenseOptions";
 
 type Props = {
   onEdit: (expense: Expense) => void;
 };
 
-const CATEGORY_ICONS: Record<string, string> = {
-  Bills: "📄",
-  Groceries: "🛒",
-  Entertainment: "🎬",
-  Shopping: "🛍️",
-  Food: "🍽️",
-  Study: "📚",
-  Transport: "🚕",
-  Rent: "🏠",
-  Health: "🏥",
-  Other: "❓",
-};
-
 export default function ExpenseList({ onEdit }: Props) {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const {
+    expenses,
+    loading,
+    isOnline,
+    deleteConfirmId,
+    expandedId,
+    retryingId,
+    error,
+    handleDelete,
+    handleRetry,
+    toggleExpand,
+    cancelDelete,
+  } = useExpenseList();
 
-  useEffect(() => {
-    const loadExpenses = async () => {
-      setLoading(true);
-      try {
-        const data = await getAllExpenses();
-        setExpenses(data.sort((a, b) => b.date.localeCompare(a.date)));
-      } catch (err) {
-        console.error("Failed to load expenses:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadExpenses();
-    window.addEventListener("expenses-updated", loadExpenses);
-
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("expenses-updated", loadExpenses);
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  const handleDelete = (id: string) => {
-    if (deleteConfirmId === id) {
-      deleteExpense(id);
-      setDeleteConfirmId(null);
-    } else {
-      setDeleteConfirmId(id);
-    }
-  };
-
-  const handleRetry = async (expense: Expense) => {
-    try {
-      // UI feedback (optional)
-      await updateExpense({ ...expense, synced: false });
-      window.dispatchEvent(new Event("expenses-updated"));
-
-      // 🔴 Send CLEAN data only
-      await syncToServer([expense]);
-
-      // 🔴 Mark synced BY ID (NO stale overwrite)
-      await markAsSynced(expense.id);
-
-      window.dispatchEvent(new Event("expenses-updated"));
-    } catch (err) {
-      console.error("Sync failed:", err);
-    }
-  };
-
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
-  };
+  const totalExpenses = expenses.reduce(
+    (sum, expense) => sum + expense.amount,
+    0,
+  );
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (expenses.length === 0) {
-    return (
-      <div className="text-center py-16 px-4">
-        <p className="text-gray-500 text-lg font-medium">
-          No expenses yet. Start tracking!
-        </p>
+      <div className="flex min-h-52 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 px-2 sm:px-4">
-      <CategoryChart expenses={expenses} />
+    <div className="w-full min-w-0 space-y-6">
+      {error && (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger"
+        >
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("expenses-updated"))}
+            className="shrink-0 font-medium underline underline-offset-2"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-6 shadow-sm">
-        <p className="text-sm text-gray-600">Total this month</p>
-        <p className="text-2xl font-bold text-gray-900">
-          ₹{expenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
-        </p>
-      </div>
+      {expenses.length > 0 && <CategoryChart expenses={expenses} />}
 
-      <div className="space-y-3">
-        {expenses.map((expense) => {
-          const isExpanded = expandedId === expense.id;
-          const isConfirming = deleteConfirmId === expense.id;
-          const date = new Date(expense.date);
-          const formattedDate = date.toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-          });
+      {/* Total Expenses */}
+      <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-muted">
+              Total recorded expenses
+            </p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              {expenses[0]?.currency ?? "₹"}
+              {totalExpenses.toLocaleString("en-IN", {
+                maximumFractionDigits: 2,
+              })}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              {expenses.length}{" "}
+              {expenses.length === 1 ? "transaction" : "transactions"} recorded
+            </p>
+          </div>
 
-          return (
-            <div
-              key={expense.id}
-              className="
-                bg-white 
-                rounded-2xl 
-                border border-gray-200 
-                shadow-sm 
-                transition-all duration-300 
-                overflow-hidden
-                relative
-              "
-            >
-              {/* Compact Header – shown on mobile */}
-              <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                onClick={() => toggleExpand(expense.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">
-                    {CATEGORY_ICONS[expense.category] || "❓"}
-                  </span>
-                  <div>
-                    <div className="text-base font-semibold text-gray-900">
-                      {expense.category}
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface text-primary">
+            <ReceiptText size={21} />
+          </div>
+        </div>
+      </section>
+
+      {/* Expense List Heading */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Recent expenses
+          </h2>
+          <span className="rounded-full bg-surface px-3 py-1 text-xs font-medium text-muted">
+            {expenses.length} records
+          </span>
+        </div>
+
+        {expenses.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card px-5 py-12 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-primary">
+              <ReceiptText size={23} />
+            </div>
+            <h3 className="mt-4 font-semibold text-foreground">
+              No expenses yet
+            </h3>
+            <p className="mx-auto mt-1 max-w-xs text-sm text-muted">
+              Your recorded expenses will appear here when you add your first
+              transaction.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {expenses.map((expense) => {
+              const isExpanded = expandedId === expense.id;
+              const isConfirming = deleteConfirmId === expense.id;
+              const isRetrying = retryingId === expense.id;
+
+              const formattedDate = new Date(expense.date).toLocaleDateString(
+                "en-IN",
+                {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                },
+              );
+
+              return (
+                <article
+                  key={expense.id}
+                  className="relative overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/30"
+                >
+                  {/* Expense Summary */}
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(expense.id)}
+                    aria-expanded={isExpanded}
+                    className="flex w-full min-w-0 items-center gap-3 p-3.5 text-left transition-colors hover:bg-surface/60 sm:gap-4 sm:p-4"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface text-xl">
+                      {CATEGORY_ICONS[
+                        expense.category as keyof typeof CATEGORY_ICONS
+                      ] ?? "❓"}
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-foreground sm:text-base">
+                        {expense.category}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted">
+                        {formattedDate}
+                      </span>
+                    </span>
+
+                    <span className="flex shrink-0 flex-col items-end gap-1.5">
+                      <span className="whitespace-nowrap text-sm font-bold tabular-nums text-foreground sm:text-base">
+                        {expense.currency}
+                        {expense.amount.toLocaleString("en-IN", {
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:text-xs ${
+                          expense.synced
+                            ? "bg-[#EDF4ED] text-[#356859]"
+                            : "bg-amber-50 text-amber-800"
+                        }`}
+                      >
+                        {expense.synced ? (
+                          <CheckCircle size={11} />
+                        ) : (
+                          <RotateCcw size={11} />
+                        )}
+                        {expense.synced ? "Synced" : "Pending"}
+                      </span>
+                    </span>
+
+                    <span className="shrink-0 text-muted">
+                      {isExpanded ? (
+                        <ChevronUp size={17} />
+                      ) : (
+                        <ChevronDown size={17} />
+                      )}
+                    </span>
+                  </button>
+
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div className="border-t border-border px-4 pb-4 pt-3">
+                      {expense.note && (
+                        <p className="mb-4 break-words text-sm leading-6 text-muted">
+                          {expense.note}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-xs text-muted">
+                          {expense.synced
+                            ? "Saved and synchronized"
+                            : isOnline
+                              ? "Waiting to synchronize"
+                              : "Saved locally · Offline"}
+                        </span>
+
+                        <div className="flex items-center gap-1.5">
+                          {!expense.synced && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRetry(expense)}
+                              disabled={!isOnline || retryingId !== null}
+                              aria-label="Retry expense sync"
+                              title={
+                                !isOnline
+                                  ? "Unavailable while offline"
+                                  : "Retry synchronization"
+                              }
+                              className="flex h-10 w-10 items-center justify-center rounded-xl text-primary transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <RotateCcw
+                                size={17}
+                                className={isRetrying ? "animate-spin" : ""}
+                              />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => onEdit(expense)}
+                            aria-label="Edit expense"
+                            className="flex h-10 w-10 items-center justify-center rounded-xl text-primary transition-colors hover:bg-surface"
+                          >
+                            <Pencil size={17} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(expense.id)}
+                            aria-label="Delete expense"
+                            className="flex h-10 w-10 items-center justify-center rounded-xl text-danger transition-colors hover:bg-danger/5"
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    {expense.synced ? (
-                      <span className="flex cursor-pointer items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-100 text-green-700">
-                        <CheckCircle size={12} />
-                        Synced
-                      </span>
-                    ) : (
-                      <span className="flex cursor-pointer items-center gap-1 text-sm font-medium px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">
-                        <RotateCcw size={12} />
-                        Pending
-                      </span>
-                    )}
-                  </div>
-
-                  <span className="text-gray-900 font-bold text-lg">
-                    {expense.currency}
-                    {expense.amount.toLocaleString("en-IN")}
-                  </span>
-
-                  <div className="text-gray-400 ">
-                    {isExpanded ? (
-                      <ChevronUp size={18} />
-                    ) : (
-                      <ChevronDown size={18} />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Expanded Details – only shown when clicked on mobile */}
-              {isExpanded && (
-                <div className="px-4 pb-4 pt-2 border-t border-gray-100">
-                  <div className="text-xs text-gray-500 mb-2">
-                    {formattedDate}
-                  </div>
-
-                  {expense.note && (
-                    <p className="text-sm text-gray-600 mb-4">{expense.note}</p>
                   )}
 
-                  <div className="flex justify-end gap-2">
-                    {!expense.synced && (
-                      <button
-                        onClick={() => handleRetry(expense)}
-                        disabled={!isOnline}
-                        title={
-                          isOnline
-                            ? "Retry sync"
-                            : "Offline – will sync when online"
-                        }
-                        className={`
-                          p-2 rounded-full 
-                          ${
-                            isOnline
-                              ? "text-orange-600 hover:bg-orange-50 active:scale-95 active:rotate-180 transition-all duration-300"
-                              : "text-gray-400 cursor-not-allowed"
-                          }
-                        `}
+                  {/* Delete Confirmation */}
+                  {isConfirming && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-foreground/25 p-4 backdrop-blur-[2px]">
+                      <div
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby={`delete-title-${expense.id}`}
+                        className="w-full max-w-xs rounded-2xl border border-border bg-card p-5 shadow-xl"
                       >
-                        <RotateCcw size={18} />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => onEdit(expense)}
-                      title="Edit"
-                      className="p-2 cursor-pointer rounded-full text-blue-600 hover:bg-blue-50 active:scale-95 transition-all duration-200"
-                    >
-                      <Pencil size={18} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmId(expense.id)}
-                      title="Delete"
-                      className="p-2 cursor-pointer rounded-full text-red-600 hover:bg-red-50 active:scale-95 transition-all duration-200"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-              )}
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger/10 text-danger">
+                            <AlertTriangle size={20} />
+                          </span>
 
-              {/* Delete Confirmation Modal */}
-              {isConfirming && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
-                  <div className="bg-white rounded-2xl shadow-2xl  p-3 max-w-xs w-full mx-4 border border-gray-200">
-                    <div className="flex items-center gap-3 mb-4">
-                      <AlertTriangle size={20} className="text-red-600" />
-                      <h3 className="text-md font-semibold text-gray-900">
-                        Delete Expense?
-                      </h3>
+                          <h3
+                            id={`delete-title-${expense.id}`}
+                            className="font-semibold text-foreground"
+                          >
+                            Delete expense?
+                          </h3>
+                        </div>
+
+                        <p className="mt-3 text-sm leading-5 text-muted">
+                          This transaction will be permanently removed from your
+                          local records.
+                        </p>
+
+                        <div className="mt-5 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={cancelDelete}
+                            className="flex-1 rounded-xl border border-border px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface"
+                          >
+                            Cancel
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(expense.id)}
+                            className="flex-1 rounded-xl bg-danger px-3 py-2.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-6">
-                      This action cannot be undone.
-                    </p>
-                    <div className="flex justify-end gap-3">
-                      <button
-                        onClick={() => setDeleteConfirmId(null)}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleDelete(expense.id)}
-                        className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
