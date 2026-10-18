@@ -5,9 +5,8 @@ import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { useSyncStatus } from "../hooks/useSyncStatus";
 
 export default function Header() {
-  // 🔑 SEPARATE CONCERNS (IMPORTANT)
-  const online = useOnlineStatus(); // boolean
-  const { status: syncStatus } = useSyncStatus(); // "idle" | "syncing" | "error"
+  const online = useOnlineStatus();
+  const { status: syncStatus } = useSyncStatus();
 
   const [time, setTime] = useState(new Date());
 
@@ -16,84 +15,94 @@ export default function Header() {
     return () => clearInterval(timer);
   }, []);
 
+  const dateLabel = time.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  const timeLabel = time.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const isSyncing = syncStatus === "syncing";
+  const hasSyncError = syncStatus === "error";
+
   return (
-    <>
-      {/* TOP HEADER */}
-      <header className="sticky top-0 z-30 bg-white/80 -900/80 backdrop-blur-md   shadow-sm">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Brand + Time */}
-            <div className="flex flex-col">
-              <h1 className="text-2xl font-poppins font-bold bg-linear-to-r  to-indigo-600 from-blue-400  bg-clip-text text-transparent">
-                QuickTrack
-              </h1>
-              <span className="text-xs text-gray-500 ">
-                {time.toLocaleDateString("en-US", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}{" "}
-                ·{" "}
-                {time.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+    <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-md">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="flex h-16 items-center justify-between gap-4">
+          {/* Brand and Date */}
+          <div className="flex min-w-0 flex-col">
+            <h1 className="text-xl font-bold tracking-tight text-primary sm:text-2xl">
+              Offline-Track
+            </h1>
+
+            <span className="text-xs text-muted">
+              {dateLabel} <span className="mx-1">·</span> {timeLabel}
+            </span>
+          </div>
+
+          {/* Connection and Sync Status */}
+          <div className="flex shrink-0 items-center gap-3 sm:gap-5">
+            {/* Network Status */}
+            <div
+              className={`flex items-center gap-1.5 text-sm ${
+                online ? "text-primary" : "text-danger"
+              }`}
+              role="status"
+              aria-label={online ? "Online" : "Offline"}
+            >
+              {online ? <Wifi size={16} /> : <WifiOff size={16} />}
+
+              <span className="hidden font-medium sm:inline">
+                {online ? "Online" : "Offline"}
               </span>
             </div>
 
-            {/* STATUS + THEME */}
-            <div className="flex items-center gap-4">
-              {/* ONLINE / OFFLINE (TRUTHFUL) */}
-              {online ? (
-                <div className="flex items-center gap-1.5  text-green-400 text-sm">
-                  <Wifi size={16} className="text-3xl" />
-                  <span className="hidden md:inline font-medium">Online</span>
-                </div>
+            {/* Sync Status */}
+            <div
+              className={`flex items-center gap-1.5 text-sm ${
+                hasSyncError
+                  ? "text-danger"
+                  : !online
+                    ? "text-muted"
+                    : "text-primary"
+              }`}
+              role="status"
+              aria-label={
+                !online
+                  ? "Offline"
+                  : isSyncing
+                    ? "Syncing"
+                    : hasSyncError
+                      ? "Sync failed"
+                      : "Sync idle"
+              }
+            >
+              {!online ? (
+                <RefreshCwOff size={16} />
               ) : (
-                <div className="flex items-center gap-1.5  text-red-400 text-sm">
-                  <WifiOff size={16} />
-                  <span className="hidden md:inline font-medium">Offline</span>
-                </div>
+                <RefreshCw
+                  size={16}
+                  className={isSyncing ? "animate-spin" : ""}
+                />
               )}
 
-              {/* SYNC STATUS (SECONDARY TO OFFLINE) */}
-              <div className=" md:flex items-center gap-1.5 text-sm text-gray-500 ">
-                {online ? (
-                  <div className="flex items-center gap-1.5  text-gray-500 text-sm">
-                    <RefreshCw
-                      size={16}
-                      className={syncStatus === "syncing" ? "animate-spin" : ""}
-                    />
-                    <span className="hidden md:inline font-medium">Synced</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5  text-red-900 text-sm">
-                    <RefreshCwOff
-                      size={16}
-                      className={syncStatus === "syncing" ? "animate-spin" : ""}
-                    />
-                    <span className="hidden md:inline font-medium">
-                      Pending
-                    </span>
-                  </div>
-                )}
-
-                {/* <span className="hidden md:inline font-medium">
-                  {!online
-                    ? "Pending"
-                    : syncStatus === "syncing"
-                    ? "Syncing…"
-                    : syncStatus === "error"
-                    ? "Sync error"
-                    : "Synced"}
-                </span> */}
-              </div>
-
-              {/* THEME TOGGLE */}
+              <span className="hidden font-medium sm:inline">
+                {!online
+                  ? "Pending"
+                  : isSyncing
+                    ? "Syncing"
+                    : hasSyncError
+                      ? "Sync failed"
+                      : "Sync idle"}
+              </span>
             </div>
           </div>
         </div>
-      </header>
-    </>
+      </div>
+    </header>
   );
 }
