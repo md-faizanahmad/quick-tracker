@@ -1,33 +1,12 @@
-// src/components/ExpenseForm.tsx
-import { useEffect, useState, type FormEvent } from "react";
-import { saveExpense, updateExpense } from "../../lib/db/indexedDb";
-import { validateExpense } from "../../lib/validation/expenseValidation";
+import { useEffect } from "react";
+import { Check, LoaderCircle } from "lucide-react";
+import {
+  useExpenseForm,
+  type ExpenseCategory,
+  type ExpenseCurrency,
+} from "../../hooks/useExpenseForm";
 import type { Expense } from "../../types/expenses";
-
-const CATEGORIES = [
-  { value: "Bills", icon: "📄" },
-  { value: "Groceries", icon: "🛒" },
-  { value: "Entertainment", icon: "🎬" },
-  { value: "Shopping", icon: "🛍️" },
-  { value: "Food", icon: "🍽️" },
-  { value: "Study", icon: "📚" },
-  { value: "Transport", icon: "🚕" },
-  { value: "Rent", icon: "🏠" },
-  { value: "Health", icon: "🏥" },
-  { value: "Other", icon: "❓" },
-] as const;
-
-type Category = (typeof CATEGORIES)[number]["value"];
-
-const CURRENCIES = [
-  { code: "₹", label: "INR", flag: "🇮🇳" },
-  { code: "$", label: "USD", flag: "🇺🇸" },
-  { code: "£", label: "GBP", flag: "🇬🇧" },
-  { code: "€", label: "EUR", flag: "🇪🇺" },
-  { code: "¥", label: "JPY", flag: "🇯🇵" },
-] as const;
-
-type CurrencyCode = (typeof CURRENCIES)[number]["code"];
+import { CATEGORIES, CURRENCIES } from "../../utils/expenseOptions";
 
 type Props = {
   initialExpense?: Expense | null;
@@ -35,149 +14,189 @@ type Props = {
 };
 
 export default function ExpenseForm({ initialExpense, onCloseEdit }: Props) {
-  const isEdit = Boolean(initialExpense);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    amount,
+    setAmount,
+    category,
+    setCategory,
+    currency,
+    setCurrency,
+    note,
+    setNote,
+    error,
+    isEdit,
+    isSubmitting,
+    handleSubmit,
+  } = useExpenseForm({ initialExpense, onCloseEdit });
 
-  const [amount, setAmount] = useState(
-    initialExpense ? String(initialExpense.amount) : ""
-  );
-  const [category, setCategory] = useState<Category>(
-    (initialExpense?.category as Category) ?? "Food"
-  );
-  const [currency, setCurrency] = useState<CurrencyCode>(
-    initialExpense?.currency ?? "₹"
-  );
-  const [note, setNote] = useState(initialExpense?.note ?? "");
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    const validation = validateExpense({
-      amount: Number(amount),
-      currency,
-      category,
-      note,
-    });
-    if (!validation.valid) {
-      setError(Object.values(validation.errors)[0] ?? "Invalid input");
-      return;
-    }
-    setError(null);
-
-    const expenseData = {
-      amount: Number(amount),
-      currency,
-      category,
-      note: note.trim() || undefined,
-      synced: false,
-    };
-
-    if (isEdit && initialExpense) {
-      await updateExpense({ ...initialExpense, ...expenseData });
-      onCloseEdit?.();
-    } else {
-      await saveExpense({
-        id: crypto.randomUUID(),
-        ...expenseData,
-        date: new Date().toISOString(),
-      });
-      setAmount("");
-      setCategory("Food");
-      setCurrency("₹");
-      setNote("");
-      onCloseEdit?.(); // Close modal after adding new
-    }
-  };
-
-  // Auto-scroll to focused input with keyboard handling
+  // Keep focused fields visible when the mobile keyboard opens.
   useEffect(() => {
-    const handleFocus = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "SELECT") {
-        // Delay to allow keyboard animation
-        setTimeout(() => {
-          target.scrollIntoView({ behavior: "smooth", block: "center" });
+    const handleFocus = (event: FocusEvent) => {
+      const target = event.target;
+
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" || target.tagName === "SELECT")
+      ) {
+        window.setTimeout(() => {
+          target.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
         }, 300);
       }
     };
 
     document.addEventListener("focusin", handleFocus);
-    return () => document.removeEventListener("focusin", handleFocus);
+
+    return () => {
+      document.removeEventListener("focusin", handleFocus);
+    };
   }, []);
 
   return (
-    <div className="w-full">
-      <form onSubmit={handleSubmit} className="space-y-6 ">
-        {/* Amount + Currency */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Amount
-          </label>
-          <div className="flex items-stretch rounded-xl overflow-hidden border border-gray-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
-              className="w-20 px-3 py-3 bg-gray-50 text-gray-900 font-medium cursor-pointer focus:outline-none"
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.flag} {c.code}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-              placeholder="0.00"
-              className="flex-1 px-4 py-3 bg-white text-gray-900 text-lg font-medium outline-none"
-            />
-          </div>
-          {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
-        </div>
+    <form onSubmit={handleSubmit} className="w-full space-y-5">
+      {/* Form Heading */}
+      <div className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+          Expense details
+        </p>
 
-        {/* Category */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Category
-          </label>
+        <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground">
+          {isEdit ? "Edit expense" : "Add an expense"}
+        </h2>
+
+        <p className="mt-1 text-sm text-muted">
+          Record your spending for easy tracking.
+        </p>
+      </div>
+
+      {/* Amount */}
+      <div className="space-y-2">
+        <label
+          htmlFor="expense-amount"
+          className="block text-sm font-medium text-foreground"
+        >
+          Amount
+        </label>
+
+        <div className="flex overflow-hidden rounded-xl border border-border bg-card transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10">
           <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as Category)}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+            aria-label="Currency"
+            value={currency}
+            onChange={(event) =>
+              setCurrency(event.target.value as ExpenseCurrency)
+            }
+            className="w-[70px] shrink-0 cursor-pointer border-0 border-r border-border bg-surface px-3 py-2 text-sm font-medium text-foreground outline-none focus:ring-0"
           >
-            {CATEGORIES.map((cat) => (
-              <option key={cat.value} value={cat.value}>
-                {cat.icon} {cat.value}
+            {CURRENCIES.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.flag} {item.code}
               </option>
             ))}
           </select>
-        </div>
 
-        {/* Note */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Note (optional)
-          </label>
           <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="e.g. Monthly groceries"
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+            id="expense-amount"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0.01"
+            required
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            placeholder="0.00"
+            className="min-w-0 flex-1 border-0 bg-transparent px-4 py-2 text-lg font-semibold tabular-nums text-foreground outline-none placeholder:text-muted/60 focus:ring-0"
           />
         </div>
+      </div>
 
-        {/* Submit Button */}
-        <button
-          type="submit"
-          className="w-full py-4 px-6 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 active:bg-blue-800 transition-all shadow-md"
+      {/* Category */}
+      <div className="space-y-2">
+        <label
+          htmlFor="expense-category"
+          className="block text-sm font-medium text-foreground"
         >
-          {isEdit ? "Save Changes" : "Add Expense"}
-        </button>
-      </form>
-    </div>
+          Category
+        </label>
+
+        <div className="relative">
+          <select
+            id="expense-category"
+            value={category}
+            onChange={(event) =>
+              setCategory(event.target.value as ExpenseCategory)
+            }
+            className="w-full cursor-pointer appearance-none rounded-xl border border-border bg-card px-4 py-3.5 pr-10 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/10"
+          >
+            {CATEGORIES.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.icon} {item.value}
+              </option>
+            ))}
+          </select>
+
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-muted"
+          >
+            ▼
+          </span>
+        </div>
+      </div>
+
+      {/* Note */}
+      <div className="space-y-2">
+        <label
+          htmlFor="expense-note"
+          className="block text-sm font-medium text-foreground"
+        >
+          Note <span className="font-normal text-muted">(optional)</span>
+        </label>
+
+        <input
+          id="expense-note"
+          type="text"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="e.g. Monthly groceries"
+          maxLength={200}
+          className="w-full rounded-xl border border-border bg-card px-4 py-3.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/10"
+        />
+      </div>
+
+      {/* Validation / Save Error */}
+      {error && (
+        <div
+          role="alert"
+          className="rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger"
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Submit */}
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting ? (
+          <>
+            <LoaderCircle size={18} className="animate-spin" />
+            Saving expense...
+          </>
+        ) : (
+          <>
+            <Check size={18} />
+            {isEdit ? "Save changes" : "Add expense"}
+          </>
+        )}
+      </button>
+
+      <p className="text-center text-xs text-muted">
+        Your expense is saved to local storage.
+      </p>
+    </form>
   );
 }
